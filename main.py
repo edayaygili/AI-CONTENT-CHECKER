@@ -1,45 +1,37 @@
+import streamlit as st
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import gradio as gr
-import pandas as pd
 import numpy as np
 
-# Hugging Face üzerindeki CSV'yi oku (gerekirse future kullanım için)
-csv_url = "https://huggingface.co/datasets/eda12/relevant-detection-data/resolve/main/yeni_10.000.csv"
-try:
-    df = pd.read_csv(csv_url)
-    print("✅ CSV başarıyla yüklendi.")
-except Exception as e:
-    print(f"❌ CSV yüklenemedi: {e}")
-    df = None
+# Modeli yükle
+@st.cache_resource
+def load_model():
+    return SentenceTransformer("paraphrase-MiniLM-L12-v2")
 
-# Embed modeli
-bert_model = SentenceTransformer("paraphrase-MiniLM-L12-v2")
+model = load_model()
 
-# Kategoriler
-content_options = [
-    "Biology", "Chemistry", "Computer", "Earth", "Medicine",
-    "Nano", "Other", "Physics", "Space"
-]
+# Arayüz başlığı
+st.title("🔍 AI Content Relevance Checker")
+st.markdown("BERT modeliyle context ve kategori uyumunu değerlendirir.")
 
-# Benzerliğe dayalı tahmin
-def semantic_predict(context, category):
-    context_embed = bert_model.encode([context])
-    category_embed = bert_model.encode([category])
+# Kullanıcıdan giriş al
+context = st.text_area("Context (Text)", height=200)
+category = st.selectbox(
+    "Content Category",
+    ["Biology", "Chemistry", "Computer", "Earth", "Medicine", "Nano", "Other", "Physics", "Space"]
+)
+
+if st.button("Check Relevance"):
+    context_embed = model.encode([context])
+    category_embed = model.encode([category])
     similarity = cosine_similarity(context_embed, category_embed)[0][0]
-    print(f"🔍 Benzerlik: {similarity:.3f}")
-    return "relevant" if similarity >= 0.10 else "non-relevant"
+    
+    st.markdown(f"**Similarity Score:** {similarity:.3f}")
+    
+    if similarity >= 0.10:
+        st.success("✅ Relevant")
+    else:
+        st.error("❌ Non-Relevant")
 
-# Gradio arayüzü
-gr.Interface(
-    fn=semantic_predict,
-    inputs=[
-        gr.Textbox(lines=6, label="Context (Text)"),
-        gr.Dropdown(choices=content_options, label="Content (Category)")
-    ],
-    outputs=gr.Textbox(label="Relevance (relevant / non-relevant)"),
-    title="Semantic Similarity Classifier",
-    description="BERT ile anlam benzerliğine göre context ve content uyumu"
-).launch(share=False, debug=True)
 
 
